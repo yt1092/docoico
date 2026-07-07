@@ -20,7 +20,7 @@ export default function QRScanner({ onDetected }: { onDetected: (url: string) =>
         const jsqr = (await import('jsqr')).default || (await import('jsqr'));
 
         const tick = () => {
-          if (!videoRef.current || videoRef.current.readyState !== HTMLVideoElement.HAVE_ENOUGH_DATA) {
+          if (!videoRef.current || videoRef.current.readyState !== videoRef.current.HAVE_ENOUGH_DATA) {
             rafId = requestAnimationFrame(tick);
             return;
           }

@@ -14,7 +14,7 @@ export default function AuthButtons() {
 
   const signInLine = async () => {
     try {
-      await supabase.auth.signInWithOAuth({ provider: 'line', options: { redirectTo: window.location.href } });
+      await supabase.auth.signInWithOAuth({ provider: 'line' as any, options: { redirectTo: window.location.href } });
     } catch (err) {
       console.error(err);
     }

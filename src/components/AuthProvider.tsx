@@ -18,7 +18,7 @@ export default function AuthProvider({ children }: { children: React.ReactNode }
       if (mounted) setUser(data.user ?? null);
     });
 
-    const { subscription } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       const u = session?.user ?? null;
       setUser(u);
       if (u) upsertProfileFromUser(u).catch(() => {});
