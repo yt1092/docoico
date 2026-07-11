@@ -1,68 +1,33 @@
 'use client';
-import React, { useState } from 'react';
+
+import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import RealtimeBars from '../../components/RealtimeBars';
-import ResultModal from '../../components/ResultModal';
+import RealtimeBars from '@/components/RealtimeBars';
+import { demoAuthHeaders } from '@/lib/clientAuth';
+
+type Candidate = { name: string; category?: string; reason?: string; comfort_score?: number };
 
 export default function HostPage() {
-  const [mode, setMode] = useState<'couple' | 'friends' | 'solo'>('friends');
-  const [session, setSession] = useState<any>(null);
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-  const [result, setResult] = useState<any>(null);
-
-  const [expectedCount, setExpectedCount] = useState<number | ''>('');
-
-  async function createSession() {
-    const res = await fetch('/api/sessions/create', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode, expected_count: expectedCount || null }) });
-    const data = await res.json();
-    if (data?.ok && data.session) {
-      setSession(data.session);
-      const joinUrl = `${window.location.origin}/session/${data.session.id}`;
-      const url = await QRCode.toDataURL(joinUrl, { width: 300 });
-      setQrDataUrl(url);
-    } else {
-      alert('セッション作成に失敗しました');
-    }
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [expectedCount, setExpectedCount] = useState(3);
+  const [session, setSession] = useState<{ id: string; expected_count?: number } | null>(null);
+  const [qr, setQr] = useState('');
+  const [winner, setWinner] = useState('');
+  const [error, setError] = useState('');
+  useEffect(() => { try { const value = new URLSearchParams(window.location.search).get('candidates'); setCandidates(value ? JSON.parse(value) : []); } catch { setError('候補の読み込みに失敗しました。フレンズモードからやり直してください。'); } }, []);
+  async function create() {
+    setError('');
+    const response = await fetch('/api/sessions/create', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await demoAuthHeaders()) }, body: JSON.stringify({ mode: 'friends', expected_count: expectedCount, expires_in_minutes: 120, candidate_options: candidates }) });
+    const data = await response.json();
+    if (!response.ok) return setError(data.error ?? 'セッションを作成できませんでした');
+    setSession(data.session);
+    setQr(await QRCode.toDataURL(`${window.location.origin}/session/${data.session.id}`, { width: 360, margin: 2 }));
   }
-
-  return (
-    <main className="min-h-screen p-6">
-      <section className="max-w-2xl mx-auto">
-        <h2 className="text-2xl font-bold mb-4">フレンズモード — ホスト作成</h2>
-        <div className="mb-4">モード選択:</div>
-        <div className="flex gap-2 mb-4">
-          <button onClick={() => setMode('couple')} className={`px-3 py-2 rounded ${mode === 'couple' ? 'bg-purple-600' : 'bg-gray-800'}`}>カップル</button>
-          <button onClick={() => setMode('friends')} className={`px-3 py-2 rounded ${mode === 'friends' ? 'bg-purple-600' : 'bg-gray-800'}`}>フレンズ</button>
-          <button onClick={() => setMode('solo')} className={`px-3 py-2 rounded ${mode === 'solo' ? 'bg-purple-600' : 'bg-gray-800'}`}>ソロ</button>
-        </div>
-
-        <div className="mb-6 flex items-center gap-3">
-          <input type="number" min={1} value={expectedCount as any} onChange={(e) => setExpectedCount(e.target.value === '' ? '' : Number(e.target.value))} placeholder="参加人数（任意）" className="px-3 py-2 rounded bg-gray-800" />
-          <button onClick={createSession} className="px-4 py-3 bg-yellow-500 rounded font-semibold">セッションを作成してQRを表示</button>
-        </div>
-
-        {session && (
-          <div className="bg-[#0f1113] p-4 rounded">
-            <div className="mb-3">セッションID: <code className="text-sm text-gray-300">{session.id}</code></div>
-            {qrDataUrl && <img src={qrDataUrl} alt="session-qr" className="mx-auto" />}
-            <div className="mt-4">
-              <RealtimeBars sessionId={session.id} expectedCount={session.expected_count} />
-            </div>
-            <div className="mt-4 text-center">
-              <button onClick={() => {
-                // trigger manual aggregate and show animated celebration (placeholder)
-                fetch('/api/sessions/aggregate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId: session.id }) })
-                  .then(r => r.json())
-                  .then(async (res) => res.json())
-                      .then((json) => {
-                        setResult(json.aggregated || null);
-                      });
-              }} className="px-4 py-2 bg-purple-600 rounded">手動で集計して提案</button>
-            </div>
-          </div>
-        )}
-            {result && <ResultModal result={result} onClose={() => setResult(null)} />}
-      </section>
-    </main>
-  );
+  async function decide() {
+    if (!session) return;
+    const response = await fetch('/api/sessions/aggregate', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await demoAuthHeaders()) }, body: JSON.stringify({ sessionId: session.id }) });
+    const data = await response.json();
+    setWinner(data.aggregated?.winner || 'まだ投票がありません');
+  }
+  return <main className="min-h-screen bg-slate-950 p-5 text-white"><section className="mx-auto max-w-xl"><p className="text-amber-300">FRIENDS MODE</p><h1 className="mt-2 text-3xl font-bold">候補をみんなで決めよう</h1><p className="mt-3 text-slate-300">候補をしぼったら、QRを読んでもらって匿名投票。</p>{error && <p className="mt-6 rounded-xl bg-red-500/20 p-4 text-red-100">{error}</p>}<div className="mt-8 space-y-2">{candidates.map((candidate) => <div key={candidate.name} className="rounded-xl bg-white/10 p-4"><strong>{candidate.name}</strong><span className="ml-2 text-sm text-violet-200">{candidate.category}</span></div>)}</div>{!session && candidates.length > 0 && <div className="mt-7 flex gap-3"><label className="flex-1 text-sm text-slate-300">参加人数<input className="mt-2 w-full rounded-lg bg-white px-3 py-3 text-slate-900" type="number" min="1" value={expectedCount} onChange={(event) => setExpectedCount(Number(event.target.value))} /></label><button onClick={create} className="mt-6 h-12 rounded-xl bg-violet-600 px-5 font-semibold">QRを作る</button></div>}{session && <div className="mt-8 rounded-2xl bg-white p-5 text-slate-900"><img className="mx-auto w-full max-w-xs" src={qr} alt="投票用QRコード" /><p className="mt-3 text-center text-sm">みんなに読み取ってもらってください</p><div className="mt-6"><RealtimeBars sessionId={session.id} candidates={candidates} expectedCount={session.expected_count} /></div><button onClick={decide} className="mt-6 w-full rounded-xl bg-slate-900 px-5 py-4 font-semibold text-white">多数決で決定する</button>{winner && <p className="mt-5 rounded-xl bg-amber-100 p-4 text-center font-bold text-amber-900">決定：{winner}</p>}</div>}</section></main>;
 }

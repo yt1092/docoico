@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
+import { requireDemoOwner } from '@/lib/demoAccess';
 
 export async function GET(req: Request) {
   try {
+    const access = await requireDemoOwner(req);
+    if (!access.ok) return access.response;
     const { searchParams } = new URL(req.url);
     const query = searchParams.get('q') || '';
     if (!query) return NextResponse.json({ ok: false, error: 'q required' }, { status: 400 });

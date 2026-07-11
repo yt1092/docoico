@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { requireDemoOwner } from '@/lib/demoAccess';
 
 export async function POST(req: Request) {
   try {
+    const access = await requireDemoOwner(req);
+    if (!access.ok) return access.response;
     const body = await req.json();
-    const { mode, host_id, expires_in_minutes } = body;
+    const { mode, expires_in_minutes, candidate_options = [] } = body;
     const expires_at = expires_in_minutes ? new Date(Date.now() + expires_in_minutes * 60000).toISOString() : null;
 
-    const { data, error } = await supabaseAdmin.from('sessions').insert([{ mode, host_id, expires_at, expected_count: body.expected_count ?? null }]).select().limit(1).single();
+    const { data, error } = await supabaseAdmin.from('sessions').insert([{ mode, host_id: access.userId, expires_at, expected_count: body.expected_count ?? null, candidate_options }]).select().limit(1).single();
     if (error) return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     return NextResponse.json({ ok: true, session: data });
   } catch (err) {

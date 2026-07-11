@@ -1,79 +1,27 @@
 'use client';
-import React, { useEffect, useState } from 'react';
-import { supabase } from '../lib/supabaseClient';
+
 import { motion } from 'framer-motion';
+import { useEffect, useMemo, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
 
-const GENRES = ['グルメ', 'カフェ', 'アミューズメント', 'ショッピング'];
-
-export default function RealtimeBars({ sessionId, expectedCount }: { sessionId: string; expectedCount?: number | null }) {
-  const [counts, setCounts] = useState<Record<string, number>>(() => GENRES.reduce((acc, g) => ({ ...acc, [g]: 0 }), {}));
-  const [finished, setFinished] = useState(false);
+export default function RealtimeBars({ sessionId, candidates, expectedCount }: { sessionId: string; candidates: { name: string }[]; expectedCount?: number | null }) {
+  const initial = useMemo(() => Object.fromEntries(candidates.map((candidate) => [candidate.name, 0])) as Record<string, number>, [candidates]);
+  const [counts, setCounts] = useState<Record<string, number>>(initial);
 
   useEffect(() => {
-    let mounted = true;
-
-    async function load() {
-      const { data } = await supabase.from('votes').select('*').eq('session_id', sessionId);
-      if (!mounted) return;
-      const tally = GENRES.reduce((acc, g) => ({ ...acc, [g]: 0 }), {} as Record<string, number>);
-      (data || []).forEach((v: any) => {
-        const g = v.genre || 'その他';
-        if (tally[g] !== undefined) tally[g]++;
-      });
-      setCounts(tally);
-    }
-
-    load();
-
-    const subscription = supabase
-      .channel(`public:votes:session=${sessionId}`)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'votes', filter: `session_id=eq.${sessionId}` }, (payload) => {
-        const newVote = payload.new as any;
-        const g = newVote.genre || 'その他';
-        setCounts(prev => ({ ...prev, [g]: (prev[g] ?? 0) + 1 }));
-      })
-      .subscribe();
-
-    return () => {
-      mounted = false;
-      try {
-        supabase.removeChannel(subscription);
-      } catch (e) {}
+    setCounts(initial);
+    const load = async () => {
+      const { data } = await supabase.from('votes').select('candidate_name').eq('session_id', sessionId);
+      setCounts((previous) => (data ?? []).reduce((next, vote: { candidate_name?: string }) => vote.candidate_name && next[vote.candidate_name] !== undefined ? { ...next, [vote.candidate_name]: next[vote.candidate_name] + 1 } : next, { ...previous }));
     };
-  }, [sessionId]);
+    load();
+    const channel = supabase.channel(`session-votes-${sessionId}`).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'votes', filter: `session_id=eq.${sessionId}` }, ({ new: vote }) => {
+      const name = (vote as { candidate_name?: string }).candidate_name;
+      if (name) setCounts((previous) => previous[name] === undefined ? previous : { ...previous, [name]: previous[name] + 1 });
+    }).subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [initial, sessionId]);
 
-  const total = Object.values(counts).reduce((a, b) => a + b, 0);
-    if (expectedCount && total >= expectedCount) setFinished(true);
-    if (expectedCount && total >= expectedCount) {
-      // trigger aggregation on server
-      fetch('/api/sessions/aggregate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ sessionId }) }).catch(() => {});
-    }
-
-  const displayTotal = total || 1;
-
-  return (
-    <div className="space-y-3 mt-6">
-      <div className="flex items-center justify-between text-sm mb-2">
-        <div>合計: {displayTotal}票</div>
-        {expectedCount ? <div>目標人数: {expectedCount}人</div> : null}
-        {finished ? <div className="text-green-300">全員回答済み</div> : null}
-      </div>
-
-      {GENRES.map(g => {
-        const value = counts[g] ?? 0;
-        const pct = Math.round((value / displayTotal) * 100);
-        return (
-          <div key={g}>
-            <div className="flex justify-between text-sm mb-1">
-              <div>{g}</div>
-              <div>{value}票</div>
-            </div>
-            <div className="bg-gray-800 h-4 rounded overflow-hidden">
-              <motion.div initial={{ width: 0 }} animate={{ width: `${pct}%` }} className="h-4 bg-gradient-to-r from-purple-600 to-yellow-400" />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
+  const total = (Object.values(counts) as number[]).reduce((sum, count) => sum + count, 0);
+  return <div className="space-y-4"><div className="flex justify-between text-sm text-slate-600"><span>投票 {total}票</span>{expectedCount ? <span>目標 {expectedCount}人</span> : null}</div>{candidates.map((candidate) => { const count = counts[candidate.name] ?? 0; const width = total ? Math.round((count / total) * 100) : 0; return <div key={candidate.name}><div className="mb-1 flex justify-between text-sm"><span>{candidate.name}</span><span>{count}票</span></div><div className="h-3 overflow-hidden rounded-full bg-slate-100"><motion.div className="h-full bg-gradient-to-r from-violet-600 to-amber-400" animate={{ width: `${width}%` }} /></div></div>; })}</div>;
 }

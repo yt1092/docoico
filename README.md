@@ -291,8 +291,44 @@ TWITTER_BEARER_TOKEN=...
 
 要: `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` を `.env.local` に設定してください。
 
+## 現在の状態（2026-07-07 時点の作業ログ）
 
+このセクションは、開発を別セッション/別担当者が引き継ぐ際に状況を把握できるようにするためのメモです。チャット履歴は残らないため、進捗はここに追記していく方針です。
 
+### デプロイ環境
+- Vercelプロジェクト: `docoico/docoico_kcl-hack2026`（本番URL: `https://docoicokcl-hack2026.vercel.app`）
+- Supabaseプロジェクト: `lfavnbcowqlxdtovulpy`（`supabase/schema.sql` 適用済み、`supabase/rls_policies.sql` も適用済み）
+- 本番環境変数（Vercel）: `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` / `SUPABASE_SERVICE_ROLE_KEY` / `OPENWEATHER_API_KEY` / `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` 設定済み
+- `GEMINI_API_KEY` は **意図的に未設定**（下記「AI提案の実装方針」参照）
+- GitHubへのpushからの自動デプロイは未検証。今のところ `vercel --prod` で手動デプロイして反映している
 
+### 実装済みの機能
+- モード選択（カップル/フレンズ/ソロ）→ 質問フロー（気分/雰囲気/ジャンル/予算、各5〜6択、前の質問に戻る・やり直す機能あり）→ AIおすすめ表示 → 地図でルート確認、の一連の流れ
+- フレンズモード: QRコード生成 → 匿名投票（Supabase Realtime）→ 集計 → 提案
+- 認証: メール/パスワード（新規登録・ログイン、パスワード表示切替）、ゲストモード（localStorage）。**Google/LINEログインはボタンのみ実装済みで、Supabase側の外部プロバイダ設定（OAuthクライアント作成）が未完了のため実際には使えない**
+- マイページ（`/mypage`）: プロフィール表示、モード選択、お気に入り一覧（ログイン時はSupabase、ゲスト時はlocalStorage）、訪問履歴（ログイン時のみ）
+- 地図（`/map`）: ピン表示、AIおすすめスポットのハイライト表示、ルート検索（ポリラインを実際に地図上に描画）
+- トップページ（`/`）: 企業サイト風のランディングページ
+
+### AI提案の実装方針（重要）
+`/api/recommend` は当初Gemini APIを使う設計だったが、開発中にユーザーのGoogle CloudアカウントでGemini APIの無料枠が使えない状態（`limit: 0` → 請求設定後は「prepayment credits depleted」）であることが判明。ユーザーの意向で **「無料で使える範囲で動くもの」を優先する方針に変更**し、以下のように実装している。
+
+- `GEMINI_API_KEY` が設定されていない場合、Gemini呼び出しをスキップし、**ルールベースの代替ロジック**（`buildFallbackSpots` in `src/app/api/recommend/route.ts`）でおすすめを生成する
+  - Google Places APIで取得した周辺スポットの評価・レビュー数・混雑度・渋滞状況から快適度スコアを算出してランキング
+- 将来 `GEMINI_API_KEY` を設定すれば、コード変更なしで自動的にGemini生成に切り替わる（`ENABLE_GEMINI` で明示的に無効化も可能）
+- X(Twitter) APIの「検索」機能は無料プランに含まれないため未実装（`TWITTER_BEARER_TOKEN` 未設定でも問題なく動作する設計）
+- Instagram APIはFacebook Developer登録等が複雑なため保留
+
+### セキュリティ・コスト面の注意点
+- `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` はブラウザに露出するため、Google Cloud ConsoleでAPI制限（Maps JavaScript API / Places API / Directions APIのみ許可）とHTTPリファラー制限（本番ドメイン + `localhost`）を必ず設定すること
+- Google CloudとGeminiの請求設定・予算アラートの設定状況は要確認（本READMEの更新時点では未確認）
+- Supabase / Vercelは無料枠の上限に達すると機能停止する形が基本で、従量課金による予期しない請求は基本的に発生しない設定（Hobbyプラン）
+
+### 未着手・今後の課題
+- Google/LINE OAuthのSupabase側設定（README内「認証セットアップ」章に手順あり）
+- Instagram/X SNS連携の実データ化
+- カップルモードでの2人紐付け機能
+- スポット決定時のGSAP演出、ページ遷移アニメーション
+- 地図ピンの「ジャンルラベルのみ表示（タップで詳細）」仕様への対応
 
 

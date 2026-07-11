@@ -1,86 +1,19 @@
 'use client';
-import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+
+import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 
+type Candidate = { name: string; category?: string };
+
 export default function SessionJoin({ params }: { params: { id: string } }) {
-  const sessionId = params.id;
-  const [submitted, setSubmitted] = useState(false);
-  const [values, setValues] = useState({ mood: '', atmosphere: '', genre: '', budget: '' });
-  const router = useRouter();
-
-  useEffect(() => {
-    // nothing for now
-  }, []);
-
-  const handleChange = (k: string, v: string) => setValues(prev => ({ ...prev, [k]: v }));
-
-  const submit = async () => {
-    try {
-      await supabase.from('votes').insert([{ session_id: sessionId, ...values }]);
-      setSubmitted(true);
-    } catch (e) {
-      alert('送信エラー');
-    }
-  };
-
-  if (submitted)
-    return (
-      <main className="min-h-screen flex items-center justify-center p-6">
-        <div className="text-center">
-          <h3 className="text-xl font-semibold mb-2">投票ありがとうございました！</h3>
-          <button onClick={() => router.push('/')} className="mt-4 px-4 py-2 border rounded">トップへ戻る</button>
-        </div>
-      </main>
-    );
-
-  return (
-    <main className="min-h-screen flex items-center justify-center p-6">
-      <section className="w-full max-w-lg">
-        <h2 className="text-2xl font-bold mb-4">セッションに参加 — 投票</h2>
-        <div className="space-y-4">
-          <div>
-            <div className="mb-2">気分</div>
-            <div className="flex gap-2">
-              <button onClick={() => handleChange('mood', 'がっつり')} className="px-3 py-2 bg-gray-800 rounded">がっつり</button>
-              <button onClick={() => handleChange('mood', 'ちょうどよく')} className="px-3 py-2 bg-gray-800 rounded">ちょうどよく</button>
-              <button onClick={() => handleChange('mood', '軽く')} className="px-3 py-2 bg-gray-800 rounded">軽く</button>
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-2">雰囲気</div>
-            <div className="flex gap-2">
-              <button onClick={() => handleChange('atmosphere', 'おしゃれ')} className="px-3 py-2 bg-gray-800 rounded">おしゃれ</button>
-              <button onClick={() => handleChange('atmosphere', '落ち着いた')} className="px-3 py-2 bg-gray-800 rounded">落ち着いた</button>
-              <button onClick={() => handleChange('atmosphere', '活気ある')} className="px-3 py-2 bg-gray-800 rounded">活気ある</button>
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-2">ジャンル</div>
-            <div className="flex gap-2">
-              <button onClick={() => handleChange('genre', 'グルメ')} className="px-3 py-2 bg-gray-800 rounded">グルメ</button>
-              <button onClick={() => handleChange('genre', 'カフェ')} className="px-3 py-2 bg-gray-800 rounded">カフェ</button>
-              <button onClick={() => handleChange('genre', 'アミューズメント')} className="px-3 py-2 bg-gray-800 rounded">アミューズメント</button>
-              <button onClick={() => handleChange('genre', 'ショッピング')} className="px-3 py-2 bg-gray-800 rounded">ショッピング</button>
-            </div>
-          </div>
-
-          <div>
-            <div className="mb-2">予算</div>
-            <div className="flex gap-2">
-              <button onClick={() => handleChange('budget', 'リーズナブル')} className="px-3 py-2 bg-gray-800 rounded">リーズナブル</button>
-              <button onClick={() => handleChange('budget', 'ちょうどよく')} className="px-3 py-2 bg-gray-800 rounded">ちょうどよく</button>
-              <button onClick={() => handleChange('budget', '奮発')} className="px-3 py-2 bg-gray-800 rounded">奮発</button>
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <button onClick={submit} className="px-4 py-3 bg-yellow-500 rounded w-full">投票して参加</button>
-          </div>
-        </div>
-      </section>
-    </main>
-  );
+  const [candidates, setCandidates] = useState<Candidate[]>([]);
+  const [selected, setSelected] = useState('');
+  const [message, setMessage] = useState('候補を読み込んでいます…');
+  useEffect(() => { fetch(`/api/sessions/${params.id}`).then((response) => response.json()).then((data) => { if (!data.ok) throw new Error(data.error); setCandidates(data.session.candidate_options ?? []); setMessage(''); }).catch((error) => setMessage(error.message)); }, [params.id]);
+  async function vote() {
+    if (!selected) return;
+    const { error } = await supabase.from('votes').insert({ session_id: params.id, candidate_name: selected });
+    setMessage(error ? '投票に失敗しました。もう一度お試しください。' : '投票しました！結果を待ちましょう。');
+  }
+  return <main className="min-h-screen bg-slate-950 p-5 text-white"><section className="mx-auto max-w-md"><p className="text-amber-300">DOCOICO FRIENDS</p><h1 className="mt-2 text-3xl font-bold">どこに行く？</h1><p className="mt-3 text-slate-300">いちばん行きたい候補を1つ選んでください。</p>{message && <p className="mt-8 rounded-xl bg-white/10 p-4 text-slate-200">{message}</p>}<div className="mt-8 space-y-3">{candidates.map((candidate) => <button key={candidate.name} onClick={() => setSelected(candidate.name)} className={`w-full rounded-2xl border p-5 text-left ${selected === candidate.name ? 'border-amber-300 bg-amber-300/15' : 'border-white/15 bg-white/5'}`}><strong>{candidate.name}</strong>{candidate.category && <span className="ml-2 text-sm text-violet-200">{candidate.category}</span>}</button>)}</div>{candidates.length > 0 && <button onClick={vote} disabled={!selected} className="mt-6 w-full rounded-xl bg-gradient-to-r from-violet-600 to-amber-500 px-5 py-4 font-semibold disabled:opacity-50">この候補に投票する</button>}</section></main>;
 }

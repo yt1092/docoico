@@ -25,7 +25,8 @@ create table if not exists sessions (
   host_id uuid,
   created_at timestamptz default now(),
   expires_at timestamptz,
-  expected_count integer
+  expected_count integer,
+  candidate_options jsonb not null default '[]'::jsonb
 );
 
 -- votes (anonymous votes linked to sessions)
@@ -36,6 +37,7 @@ create table if not exists votes (
   atmosphere text,
   budget text,
   genre text,
+  candidate_name text,
   created_at timestamptz default now()
 );
 

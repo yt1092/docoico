@@ -17,9 +17,9 @@ export default function ModeCard({ emoji, title, mode }: { emoji: string; title:
       whileHover={{ scale: 1.03 }}
       transition={{ type: 'spring', stiffness: 120 }}
     >
-      <Link href={`/mode/${mode ?? title}`} className="block bg-[#121018] p-6 rounded-xl shadow-md border border-gray-800 hover:opacity-95">
+      <Link href={`/mode/${mode ?? title}`} className="block bg-white p-6 rounded-xl shadow-sm border border-gray-100 hover:shadow-md hover:border-violet-200 transition">
         <div className="text-3xl mb-2">{emoji}</div>
-        <div className="text-lg font-semibold">{title}</div>
+        <div className="text-lg font-semibold text-gray-800">{title}</div>
       </Link>
     </motion.div>
   );

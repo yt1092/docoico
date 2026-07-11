@@ -1,5 +1,6 @@
 import './globals.css';
 import React from 'react';
+import AuthProvider from '../components/AuthProvider';
 
 export const metadata = {
   title: 'DOCOICO',
@@ -9,7 +10,9 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ja">
-      <body className="bg-[#0b0b10] text-white antialiased">{children}</body>
+      <body className="bg-gradient-to-b from-violet-50 via-white to-amber-50 text-gray-900 antialiased">
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

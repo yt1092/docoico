@@ -1,14 +1,17 @@
 import { NextResponse } from 'next/server';
+import { requireDemoOwner } from '@/lib/demoAccess';
 
 export async function GET(req: Request) {
   try {
+    const access = await requireDemoOwner(req);
+    if (!access.ok) return access.response;
     const { searchParams } = new URL(req.url);
     const lat = searchParams.get('lat');
     const lng = searchParams.get('lng');
     const keyword = searchParams.get('keyword') || '';
     if (!lat || !lng) return NextResponse.json({ ok: false, error: 'lat & lng required' }, { status: 400 });
 
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+    const apiKey = process.env.GOOGLE_MAPS_SERVER_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
     if (!apiKey) return NextResponse.json({ ok: false, error: 'GOOGLE_MAPS_API_KEY not set' }, { status: 400 });
 
     const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=2000&keyword=${encodeURIComponent(keyword)}&key=${apiKey}`;
