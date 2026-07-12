@@ -30,6 +30,16 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const { spot_id, note, spot_name, spot_category, lat, lng, transport } = body;
+    // Reopening a candidate (for example via "提案に戻る") must refresh its
+    // position in the history, not create another identical card.
+    if (typeof spot_name === 'string' && spot_name.trim()) {
+      const { error: duplicateError } = await supabaseAdmin
+        .from('user_history')
+        .delete()
+        .eq('user_id', userId)
+        .eq('spot_name', spot_name.trim());
+      if (duplicateError) return NextResponse.json({ ok: false, error: duplicateError.message }, { status: 500 });
+    }
     const { data, error } = await supabaseAdmin.from('user_history').insert([{
       user_id: userId, spot_id: spot_id || null, note: note || null,
       spot_name: typeof spot_name === 'string' ? spot_name.slice(0, 160) : null,

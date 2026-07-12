@@ -2,8 +2,9 @@
 
 import { AnimatePresence, motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { demoAuthHeaders } from '@/lib/clientAuth';
+import { supabase } from '@/lib/supabaseClient';
 
 type Mode = 'couple' | 'friends' | 'solo';
 type Answer = Record<string, string>;
@@ -12,9 +13,9 @@ type Question = { key: string; title: string; options?: string[]; input?: 'numbe
 
 const common: Question[] = [
   { key: 'transport', title: 'どうやって行く？', options: ['徒歩', '電車', 'バス', '車'] },
-  { key: 'availableTime', title: '移動を含めて、どれくらい時間がある？', options: ['30分くらい', '1時間くらい', '2時間以上'] },
-  { key: 'age', title: '年齢を入力してください', input: 'number' }
+  { key: 'availableTime', title: '移動を含めて、どれくらい時間がある？', options: ['30分くらい', '1時間くらい', '2時間以上'] }
 ];
+const ageQuestion: Question = { key: 'age', title: '年齢を入力してください', input: 'number' };
 
 const modeQuestions: Record<Mode, Question[]> = {
   couple: [
@@ -46,11 +47,33 @@ export default function QuestionFlow({ mode }: { mode: Mode }) {
   const [error, setError] = useState('');
   const [spots, setSpots] = useState<Candidate[] | null>(null);
   const [shared, setShared] = useState<string | null>(null);
+  const [savedAge, setSavedAge] = useState<number | null>(null);
+  const [profileReady, setProfileReady] = useState(false);
   const questions = useMemo(() => {
-    const adult = Number(answers.age) >= 20;
-    return [...common, ...modeQuestions[mode].map(question => question.key === 'genre' && adult ? { ...question, options: [...(question.options || []), '居酒屋・バー'] } : question)];
-  }, [answers.age, mode]);
+    const adult = Number(answers.age || savedAge || 0) >= 20;
+    const introductoryQuestions = savedAge == null ? [...common, ageQuestion] : common;
+    return [...introductoryQuestions, ...modeQuestions[mode].map(question => question.key === 'genre' && adult ? { ...question, options: [...(question.options || []), '居酒屋・バー'] } : question)];
+  }, [answers.age, mode, savedAge]);
   const current = questions[index];
+
+  useEffect(() => {
+    async function loadSavedAge() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) { setProfileReady(true); return; }
+      try {
+        const response = await fetch('/api/profile', { headers: { Authorization: `Bearer ${session.access_token}` } });
+        const data = await response.json();
+        const birthDate = data.profile?.birth_date;
+        if (response.ok && birthDate) {
+          const birth = new Date(birthDate);
+          const today = new Date();
+          setSavedAge(today.getFullYear() - birth.getFullYear() - (today < new Date(today.getFullYear(), birth.getMonth(), birth.getDate()) ? 1 : 0));
+        }
+      } catch { /* an age question is the safe fallback */ }
+      setProfileReady(true);
+    }
+    loadSavedAge();
+  }, []);
 
   async function location() {
     if (!navigator.geolocation) return null;
@@ -63,7 +86,8 @@ export default function QuestionFlow({ mode }: { mode: Mode }) {
   async function recommend(next: Answer) {
     setLoading(true); setError('');
     try {
-      const response = await fetch('/api/recommend', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await demoAuthHeaders()) }, body: JSON.stringify({ aggregated: next, location: await location() }) });
+      const aggregated = { ...next, age: next.age || (savedAge != null ? String(savedAge) : '') };
+      const response = await fetch('/api/recommend', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await demoAuthHeaders()) }, body: JSON.stringify({ aggregated, location: await location() }) });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || '候補を取得できませんでした。');
       setSpots(data.parsed?.spots || []);
@@ -106,6 +130,7 @@ export default function QuestionFlow({ mode }: { mode: Mode }) {
     router.push(`/map?${params.toString()}`);
   }
 
+  if (!profileReady) return <div className="py-16 text-center text-violet-700">プロフィールを確認しています…</div>;
   if (loading) return <div className="py-16 text-center text-violet-700">AIがリアルタイムの条件をもとに候補を探しています…</div>;
   if (error && !spots) return <div className="rounded-2xl border border-red-200 bg-red-50 p-6 text-center text-red-700"><p>{error}</p><button className="mt-4 underline" onClick={() => setError('')}>質問に戻る</button></div>;
   if (spots) return <section className="space-y-4"><h3 className="text-2xl font-bold">おすすめ候補</h3>{shared && <p className="rounded-xl bg-violet-50 p-3 text-sm text-violet-700">{shared}</p>}{spots.map((spot, i) => <button key={`${spot.name}-${i}`} onClick={() => openSpot(spot)} className="block w-full rounded-2xl border border-violet-100 bg-white p-5 text-left shadow-sm"><div className="flex justify-between gap-3"><strong>{spot.name}</strong><span className="text-sm text-amber-700">快適度 {spot.comfort_score ?? '-'}</span></div><p className="mt-2 text-sm text-violet-700">{spot.category}</p><p className="mt-2 text-sm text-slate-600">{spot.reason}</p></button>)}{mode === 'friends' && spots.length > 0 && <button onClick={() => router.push(`/host?candidates=${encodeURIComponent(JSON.stringify(spots))}`)} className="w-full rounded-xl bg-violet-600 px-5 py-4 font-semibold text-white">この候補をQR投票に出す</button>}<button className="w-full rounded-xl border border-violet-300 px-5 py-3 font-semibold text-violet-700" onClick={() => recommend(answers)}>ほかの候補を探す</button><button className="w-full py-2 text-sm text-slate-500" onClick={() => { setSpots(null); setIndex(0); setAnswers({}); setAgeInput(''); }}>質問を変える</button></section>;
