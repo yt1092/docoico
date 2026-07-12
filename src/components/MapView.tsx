@@ -47,7 +47,7 @@ export default function MapView() {
       init();
     } else {
       const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${key}`;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&loading=async`;
       script.async = true;
       script.onload = () => init();
       document.head.appendChild(script);
