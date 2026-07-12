@@ -14,9 +14,9 @@ export default function PinModal({
 }: {
   spot: any;
   origin?: { lat: number; lng: number } | null;
-  initialMode?: 'walking' | 'driving' | 'transit';
+  initialMode?: 'walking' | 'driving' | 'transit' | 'bus';
   onClose: () => void;
-  onRoute?: (path: { lat: number; lng: number }[]) => void;
+  onRoute?: (path: { lat: number; lng: number }[], color: string) => void;
 }) {
   const [social, setSocial] = useState<any>(null);
   const [showDirections, setShowDirections] = useState(false);

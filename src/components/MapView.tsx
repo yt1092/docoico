@@ -35,14 +35,14 @@ export default function MapView() {
   const routeLineRef = useRef<any>(null);
   const searchParams = useSearchParams();
   const transport = searchParams.get('transport');
-  const initialMode = transport === '電車' ? 'transit' : transport === '車' ? 'driving' : 'walking';
+  const initialMode = transport === '電車' ? 'transit' : transport === 'バス' ? 'bus' : transport === '車' ? 'driving' : 'walking';
 
-  function drawRoute(path: { lat: number; lng: number }[]) {
+  function drawRoute(path: { lat: number; lng: number }[], color = '#7c3aed') {
     if (!map || !path.length) return;
     if (routeLineRef.current) routeLineRef.current.setMap(null);
     const line = new (window as any).google.maps.Polyline({
       path,
-      strokeColor: '#7c3aed',
+      strokeColor: color,
       strokeWeight: 5,
       strokeOpacity: 0.8
     });

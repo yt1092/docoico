@@ -47,6 +47,21 @@ create table if not exists profiles (
   provider text,
   display_name text,
   avatar_url text,
+  birth_date date,
+  partner_user_id uuid references profiles(id) on delete set null,
+  updated_at timestamptz default now(),
+  created_at timestamptz default now()
+);
+
+-- Couple-mode proposals. These are written and read only through protected
+-- server routes, so no browser policy grants are needed.
+create table if not exists couple_recommendations (
+  id uuid primary key default gen_random_uuid(),
+  sender_id uuid not null references profiles(id) on delete cascade,
+  partner_id uuid not null references profiles(id) on delete cascade,
+  spot_name text not null,
+  spot_category text,
+  spot_reason text,
   created_at timestamptz default now()
 );
 
@@ -75,3 +90,4 @@ create table if not exists favorites (
 );
 
 create unique index if not exists ux_favorites_user_spot on favorites(user_id, spot_id);
+create index if not exists idx_couple_recommendations_partner on couple_recommendations(partner_id, created_at desc);

@@ -140,7 +140,10 @@ export async function POST(req: Request) {
     const aggregated = body.aggregated ?? body;
     const location: LatLng | null = body.location ?? null;
 
-    const genre = aggregated?.genre || topKey(aggregated?.counts) || '';
+    const requestedGenre = aggregated?.genre || topKey(aggregated?.counts) || '';
+    const isAdult = Number(aggregated?.age) >= 20;
+    // Enforce the age guard on the server too, not only in the client UI.
+    const genre = !isAdult && /居酒屋|バー|酒/.test(requestedGenre) ? 'カフェ' : requestedGenre;
     const mood = aggregated?.mood || topKey(aggregated?.moods) || '不明';
     const atmosphere = aggregated?.atmosphere || topKey(aggregated?.atmos) || '不明';
     const budget = aggregated?.budget || topKey(aggregated?.budgets) || '不明';
@@ -172,6 +175,9 @@ export async function POST(req: Request) {
       ? candidates.map(c => `${c.name}（評価${c.rating ?? '不明'}, レビュー${c.user_ratings_total ?? 0}件）`).join(' / ')
       : 'なし';
 
+    const ageGuidance = isAdult
+      ? 'ユーザーは20歳以上です。居酒屋・バーなど、お酒を提供する候補も提案できます。'
+      : 'ユーザーは20歳未満です。居酒屋・バー・酒類の提供を主目的とする候補は絶対に提案しないでください。';
     const prompt = `現在地：${locationStr}
 現在時刻：${timeStr}
 天気：${weatherStr}、気温：${tempStr}度
@@ -179,6 +185,7 @@ export async function POST(req: Request) {
 希望する雰囲気：${atmosphere}
 希望ジャンル：${genre || '不明'}
 予算：${budget}
+年齢条件：${ageGuidance}
 現在の混雑状況：${congestionLabel}
 渋滞状況：${trafficLabel}
 SNSバズりスコア：${buzzScore ?? '取得不可'}
