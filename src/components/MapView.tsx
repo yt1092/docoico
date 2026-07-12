@@ -8,12 +8,30 @@ declare global {
   interface Window { initMap?: any; }
 }
 
+let mapsLoader: Promise<void> | null = null;
+
+function loadGoogleMaps(key: string) {
+  if ((window as any).google?.maps) return Promise.resolve();
+  if (mapsLoader) return mapsLoader;
+  mapsLoader = new Promise((resolve, reject) => {
+    const callback = '__docoicoGoogleMapsReady';
+    (window as any)[callback] = () => resolve();
+    const script = document.createElement('script');
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&loading=async&callback=${callback}`;
+    script.async = true;
+    script.onerror = () => reject(new Error('Google Maps を読み込めませんでした。APIキーの制限を確認してください。'));
+    document.head.appendChild(script);
+  });
+  return mapsLoader;
+}
+
 export default function MapView() {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const [map, setMap] = useState<any>(null);
   const [markers, setMarkers] = useState<any[]>([]);
   const [selected, setSelected] = useState<any | null>(null);
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [mapError, setMapError] = useState<string | null>(null);
   const routeLineRef = useRef<any>(null);
   const searchParams = useSearchParams();
   const transport = searchParams.get('transport');
@@ -37,23 +55,21 @@ export default function MapView() {
   }
 
   useEffect(() => {
+    let cancelled = false;
     const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
     if (!key) {
-      console.warn('Google Maps key not set');
+      setMapError('Google Maps APIキーが設定されていません。');
       return;
     }
 
-    if ((window as any).google && (window as any).google.maps) {
-      init();
-    } else {
-      const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${key}&loading=async`;
-      script.async = true;
-      script.onload = () => init();
-      document.head.appendChild(script);
-    }
-
     async function init() {
+      try {
+        await loadGoogleMaps(key!);
+        if (cancelled || !mapRef.current) return;
+      } catch (error) {
+        if (!cancelled) setMapError(error instanceof Error ? error.message : '地図を読み込めませんでした。');
+        return;
+      }
       const targetLat = searchParams.get('lat');
       const targetLng = searchParams.get('lng');
       const target = targetLat && targetLng ? { lat: parseFloat(targetLat), lng: parseFloat(targetLng) } : null;
@@ -110,11 +126,14 @@ export default function MapView() {
 
       setMarkers(createdMarkers);
     }
+    init();
+    return () => { cancelled = true; };
   }, [searchParams]);
 
   return (
     <div className="relative h-[70vh] rounded-xl overflow-hidden">
       <div ref={mapRef} className="w-full h-full" />
+      {mapError && <div className="absolute inset-0 grid place-items-center bg-white p-6 text-center text-red-600">{mapError}</div>}
       {selected && (
         <PinModal spot={selected} origin={userLocation} initialMode={initialMode} onClose={() => setSelected(null)} onRoute={drawRoute} />
       )}
