@@ -2,16 +2,19 @@
 import React, { useEffect, useState } from 'react';
 import { gsap } from 'gsap';
 import { supabase } from '../lib/supabaseClient';
+import { demoAuthHeaders } from '../lib/clientAuth';
 import DirectionsPanel from './DirectionsPanel';
 
 export default function PinModal({
   spot,
   origin,
+  initialMode,
   onClose,
   onRoute
 }: {
   spot: any;
   origin?: { lat: number; lng: number } | null;
+  initialMode?: 'walking' | 'driving' | 'transit';
   onClose: () => void;
   onRoute?: (path: { lat: number; lng: number }[]) => void;
 }) {
@@ -24,16 +27,15 @@ export default function PinModal({
     if (el) gsap.fromTo(el, { y: 50, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4 });
     // Try Instagram-specific endpoint first
     const igUrl = spot.instagram_url || '';
-    if (igUrl) {
-      fetch(`/api/instagram?url=${encodeURIComponent(igUrl)}`).then(r => r.json()).then((json) => {
-        if (json?.ok && json?.items?.length) setSocial({ instagram: json.items });
-        else fetch(`/api/social?q=${encodeURIComponent(spot.name)}`).then(r => r.json()).then(setSocial).catch(() => {});
-      }).catch(() => {
-        fetch(`/api/social?q=${encodeURIComponent(spot.name)}`).then(r => r.json()).then(setSocial).catch(() => {});
-      });
-    } else {
-      fetch(`/api/social?q=${encodeURIComponent(spot.name)}`).then(r => r.json()).then(setSocial).catch(() => {});
+    async function loadSocial() {
+      const headers = await demoAuthHeaders();
+      const socialUrl = `/api/social?q=${encodeURIComponent(spot.name)}`;
+      if (!igUrl) return fetch(socialUrl, { headers }).then(r => r.json()).then(setSocial);
+      const instagram = await fetch(`/api/instagram?url=${encodeURIComponent(igUrl)}`, { headers }).then(r => r.json());
+      if (instagram?.ok && instagram?.items?.length) setSocial({ instagram: instagram.items });
+      else fetch(socialUrl, { headers }).then(r => r.json()).then(setSocial);
     }
+    loadSocial().catch(() => {});
   }, [spot]);
 
   async function saveFavorite() {
@@ -114,7 +116,7 @@ export default function PinModal({
 
       {showDirections && destination && (
         <div className="mt-3">
-          <DirectionsPanel origin={originStr} destination={destination} onRoute={onRoute} />
+          <DirectionsPanel origin={originStr} destination={destination} initialMode={initialMode} onRoute={onRoute} />
         </div>
       )}
 

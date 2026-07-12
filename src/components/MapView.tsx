@@ -16,6 +16,8 @@ export default function MapView() {
   const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
   const routeLineRef = useRef<any>(null);
   const searchParams = useSearchParams();
+  const transport = searchParams.get('transport');
+  const initialMode = transport === '電車' ? 'transit' : transport === '車' ? 'driving' : 'walking';
 
   function drawRoute(path: { lat: number; lng: number }[]) {
     if (!map || !path.length) return;
@@ -114,7 +116,7 @@ export default function MapView() {
     <div className="relative h-[70vh] rounded-xl overflow-hidden">
       <div ref={mapRef} className="w-full h-full" />
       {selected && (
-        <PinModal spot={selected} origin={userLocation} onClose={() => setSelected(null)} onRoute={drawRoute} />
+        <PinModal spot={selected} origin={userLocation} initialMode={initialMode} onClose={() => setSelected(null)} onRoute={drawRoute} />
       )}
       <div className="absolute right-4 bottom-4">
         <ThreeJsPinEffect />
