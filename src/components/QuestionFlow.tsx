@@ -93,7 +93,16 @@ export default function QuestionFlow({ mode }: { mode: Mode }) {
         setShared(response.ok ? '恋人へ候補を共有しました。' : result.error || '共有できませんでした。');
       } catch { setShared('恋人への共有に失敗しました。'); }
     }
-    const params = new URLSearchParams({ name: spot.name, lat: String(spot.lat || ''), lng: String(spot.lng || ''), category: spot.category || '', transport: answers.transport || '徒歩' });
+    // Keep only the latest three viewed candidates, so the dashboard can
+    // reopen their map and route immediately.
+    try {
+      await fetch('/api/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await demoAuthHeaders()) },
+        body: JSON.stringify({ spot_name: spot.name, spot_category: spot.category, lat: spot.lat, lng: spot.lng, transport: answers.transport })
+      });
+    } catch { /* history is a convenience feature; navigating must still work */ }
+    const params = new URLSearchParams({ name: spot.name, lat: String(spot.lat || ''), lng: String(spot.lng || ''), category: spot.category || '', transport: answers.transport || '徒歩', mode });
     router.push(`/map?${params.toString()}`);
   }
 

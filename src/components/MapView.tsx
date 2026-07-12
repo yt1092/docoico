@@ -1,5 +1,6 @@
 'use client';
 import React, { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import ThreeJsPinEffect from './ThreeJsPinEffect';
 import PinModal from './PinModal';
@@ -35,6 +36,7 @@ export default function MapView() {
   const routeLineRef = useRef<any>(null);
   const searchParams = useSearchParams();
   const transport = searchParams.get('transport');
+  const questionMode = searchParams.get('mode') || 'solo';
   const initialMode = transport === '電車' ? 'transit' : transport === 'バス' ? 'bus' : transport === '車' ? 'driving' : 'walking';
 
   function drawRoute(path: { lat: number; lng: number }[], color = '#7c3aed') {
@@ -137,6 +139,7 @@ export default function MapView() {
       {selected && (
         <PinModal spot={selected} origin={userLocation} initialMode={initialMode} onClose={() => setSelected(null)} onRoute={drawRoute} />
       )}
+      <Link href={`/questions?mode=${encodeURIComponent(questionMode)}`} className="absolute left-4 bottom-4 rounded-xl bg-slate-900/90 px-4 py-3 text-sm font-semibold text-white shadow-lg">← 提案に戻る</Link>
       <div className="absolute right-4 bottom-4">
         <ThreeJsPinEffect />
       </div>

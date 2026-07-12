@@ -76,6 +76,11 @@ create table if not exists user_history (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null,
   spot_id uuid,
+  spot_name text,
+  spot_category text,
+  lat double precision,
+  lng double precision,
+  transport text,
   note text,
   created_at timestamptz default now(),
   foreign key (spot_id) references spots(id) on delete set null
@@ -91,3 +96,7 @@ create table if not exists favorites (
 
 create unique index if not exists ux_favorites_user_spot on favorites(user_id, spot_id);
 create index if not exists idx_couple_recommendations_partner on couple_recommendations(partner_id, created_at desc);
+
+insert into storage.buckets (id, name, public)
+values ('avatars', 'avatars', true)
+on conflict (id) do update set public = true;
